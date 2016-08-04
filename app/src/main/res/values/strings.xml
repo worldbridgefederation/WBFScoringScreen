@@ -2,6 +2,7 @@
     <string name="app_name">WBFScoringScreen</string>
 
     <string name="title_activity_fullscreen">FullscreenActivity</string>
-    <string name="dummy_button">Dummy Button</string>
-    <string name="dummy_content">DUMMY\nCONTENT</string>
+
+    <string name="toast_fullscreen_enable">Switched to fullscreen</string>
+    <string name="toast_fullscreen_disable">Fullscreen disabled</string>
 </resources>
