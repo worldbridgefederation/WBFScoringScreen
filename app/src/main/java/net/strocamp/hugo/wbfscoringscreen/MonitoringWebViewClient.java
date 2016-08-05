@@ -24,6 +24,7 @@ public class MonitoringWebViewClient extends WebViewClient {
 
         view.loadData("<html><body><h1>Error </h1><p>Loading " + failingUrl + " failed...</body></html>", "text/html", "UTF-8");
 
+        Toast.showMessage(view.getContext(), "Load failed, retrying in 3 seconds");
         new Thread(new Runnable() {
             @Override
             public void run() {

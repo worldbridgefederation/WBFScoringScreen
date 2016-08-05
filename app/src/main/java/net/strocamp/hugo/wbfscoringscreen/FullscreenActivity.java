@@ -125,7 +125,10 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         mLoadurlHandler.post(new Runnable() {
             @Override
             public void run() {
+                Toast.showMessage(mContentView.getContext(), "WatchDog Timer expiring, forcing reload");
                 WebView myWebView = (WebView) mContentView;
+                myWebView.stopLoading();
+
                 myWebView.loadUrl(BASE_URL);
 
             }
