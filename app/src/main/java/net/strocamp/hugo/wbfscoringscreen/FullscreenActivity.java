@@ -1,27 +1,28 @@
 package net.strocamp.hugo.wbfscoringscreen;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
 import android.view.View;
-import android.webkit.MimeTypeMap;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Toast;
 
 import static net.strocamp.hugo.wbfscoringscreen.Toast.showMessage;
 
-public class FullscreenActivity extends AppCompatActivity {
+public class FullscreenActivity extends AppCompatActivity implements WatchDogListener {
     private static final boolean AUTO_HIDE = true;
-    private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
+    private static final int AUTO_HIDE_DELAY_MILLIS = 300;
     private static final int UI_ANIMATION_DELAY = 300;
 
+    private static final String BASE_URL = "http://10.100.200.99";
+
     private final Handler mHideHandler = new Handler();
+    private final Handler mLoadurlHandler = new Handler();
+
     private View mContentView;
     private View mControlsView;
 
@@ -50,18 +51,13 @@ public class FullscreenActivity extends AppCompatActivity {
         }
     };
 
-    private boolean mVisible;
     private final Runnable mHideRunnable = new Runnable() {
         @Override
         public void run() {
             hide();
         }
     };
-    /**
-     * Touch listener to use for in-layout UI controls to delay hiding the
-     * system UI. This is to prevent the jarring behavior of controls going away
-     * while interacting with activity UI.
-     */
+
     private final View.OnTouchListener mDelayHideTouchListener = new View.OnTouchListener() {
         @Override
         public boolean onTouch(View view, MotionEvent motionEvent) {
@@ -79,23 +75,17 @@ public class FullscreenActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_fullscreen);
 
-        mVisible = true;
         mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.fullscreen_content);
 
-        // Set up the user interaction to manually show or hide the system UI.
-        mContentView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                toggle();
-            }
-        });
         mContentView.setOnTouchListener(mDelayHideTouchListener);
 
-        WebView myWebView = (WebView) mContentView;
-        WebSettings webSettings = myWebView.getSettings();
-        myWebView.setWebViewClient(new MonitoringWebViewClient());
+        WebView mWebView = (WebView) mContentView;
+        mWebView.setWebViewClient(new MonitoringWebViewClient());
+
+        WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
+
     }
 
     @Override
@@ -107,16 +97,10 @@ public class FullscreenActivity extends AppCompatActivity {
         // are available.
         delayedHide(100);
 
-        WebView myWebView = (WebView) mContentView;
-        myWebView.loadUrl("http://10.100.200.99");
-    }
+        WatchDog.getInstance().setListener(this);
 
-    private void toggle() {
-        if (mVisible) {
-            hide();
-        } else {
-            show();
-        }
+        WebView mWebView = (WebView) mContentView;
+        mWebView.loadUrl(BASE_URL);
     }
 
     private void hide() {
@@ -125,31 +109,26 @@ public class FullscreenActivity extends AppCompatActivity {
         if (actionBar != null) {
             actionBar.hide();
         }
-        mVisible = false;
 
         // Schedule a runnable to remove the status and navigation bar after a delay
         mHideHandler.removeCallbacks(mShowPart2Runnable);
         mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
     }
 
-    @SuppressLint("InlinedApi")
-    private void show() {
-        // Show the system bar
-        mContentView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-        mVisible = true;
-
-        // Schedule a runnable to display UI elements after a delay
-        mHideHandler.removeCallbacks(mHidePart2Runnable);
-        mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
-    }
-
-    /**
-     * Schedules a call to hide() in [delay] milliseconds, canceling any
-     * previously scheduled calls.
-     */
     private void delayedHide(int delayMillis) {
         mHideHandler.removeCallbacks(mHideRunnable);
         mHideHandler.postDelayed(mHideRunnable, delayMillis);
+    }
+
+    @Override
+    public void onWatchDogExpired() {
+        mLoadurlHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                WebView myWebView = (WebView) mContentView;
+                myWebView.loadUrl(BASE_URL);
+
+            }
+        });
     }
 }
