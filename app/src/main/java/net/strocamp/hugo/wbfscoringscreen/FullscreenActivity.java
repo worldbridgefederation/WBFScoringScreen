@@ -23,6 +23,7 @@ import net.strocamp.hugo.wbfscoringscreen.nds.NsdHelper;
 import net.strocamp.hugo.wbfscoringscreen.nds.StatusUpdateTask;
 import net.strocamp.hugo.wbfscoringscreen.scheduler.Scheduler;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static net.strocamp.hugo.wbfscoringscreen.Toast.showMessage;
@@ -46,6 +47,8 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private String statusTaskId = null;
 
     private String deviceId = null;
+
+    private volatile String currentUrl;
 
     private Handler mNsdEventHandler = new Handler(new Handler.Callback() {
         @Override
@@ -233,13 +236,32 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private void sendStatusUpdate() {
         Log.d("FullScreenActivity", "Sending status update to " + serverDetails.getHost());
 
-        WebView mWebView = (WebView) mContentView;
-
         Status status = new Status();
         status.setDeviceId(deviceId);
-        status.setCurrentUrl(mWebView.getUrl());
+        status.setCurrentUrl(getCurrentUrlFromotherThread());
 
         StatusTaskDetails details = new StatusTaskDetails(status, serverDetails);
         new StatusUpdateTask().execute(details);
+    }
+
+    private String getCurrentUrlFromotherThread() {
+        final CountDownLatch latch = new CountDownLatch(1);
+        mNsdEventHandler.postAtFrontOfQueue(new Runnable() {
+            @Override
+            public void run() {
+                WebView myWebView = (WebView) mContentView;
+                currentUrl = myWebView.getUrl();
+                latch.countDown();
+            }
+        });
+        try {
+            boolean done = latch.await(250, TimeUnit.MILLISECONDS);
+            if (done) {
+                return currentUrl;
+            }
+        } catch (InterruptedException e) {
+            Log.e("FullscreenActivity", "Latch wait got interrupted");
+        }
+        return null;
     }
 }
