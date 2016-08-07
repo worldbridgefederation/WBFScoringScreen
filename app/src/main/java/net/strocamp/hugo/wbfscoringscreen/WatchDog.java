@@ -1,6 +1,9 @@
 package net.strocamp.hugo.wbfscoringscreen;
 
+import android.util.Log;
+
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WatchDog {
     private static final int WATCHDOG_TIMEOUT = 300000;
@@ -8,8 +11,10 @@ public class WatchDog {
     private static WatchDog instance = null;
 
     private volatile Date lastUpdate = null;
-
     private volatile WatchDogListener listener = null;
+    private volatile Thread worker;
+
+    private AtomicBoolean running;
 
     private void notifyListeners() {
         if (listener != null) {
@@ -18,10 +23,12 @@ public class WatchDog {
     }
 
     private WatchDog() {
-        new Thread(new Runnable() {
+        running = new AtomicBoolean(true);
+        worker = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (true) {
+                Log.i("WatchDog", "Starting WatchDog");
+                while (running.get()) {
                     long now = System.currentTimeMillis();
                     if (lastUpdate != null && now - lastUpdate.getTime() > WATCHDOG_TIMEOUT) {
                         notifyListeners();
@@ -33,9 +40,10 @@ public class WatchDog {
                         // Ignore
                     }
                 }
-
+                Log.i("WatchDog", "Closing WatchDog");
             }
-        }).start();
+        });
+        worker.start();
     }
 
     public static WatchDog getInstance() {
@@ -45,6 +53,18 @@ public class WatchDog {
             }
         }
         return instance;
+    }
+
+    public void shutdown() {
+        running.set(false);
+        try {
+            worker.join(1000);
+        } catch (InterruptedException e) {
+            Log.e("WatchDog", "Failed to shutdown", e);
+        }
+        synchronized (instanceLock) {
+            instance = null;
+        }
     }
 
     public void resetWatchDog() {

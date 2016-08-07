@@ -1,15 +1,29 @@
 package net.strocamp.hugo.wbfscoringscreen;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.Application;
+import android.content.Context;
+import android.net.nsd.NsdManager;
+import android.os.Message;
+import android.provider.Settings;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import net.strocamp.hugo.wbfscoringscreen.domain.ServerDetails;
+import net.strocamp.hugo.wbfscoringscreen.domain.Status;
+import net.strocamp.hugo.wbfscoringscreen.domain.StatusTaskDetails;
+import net.strocamp.hugo.wbfscoringscreen.nds.NsdHelper;
+import net.strocamp.hugo.wbfscoringscreen.nds.StatusUpdateTask;
+import net.strocamp.hugo.wbfscoringscreen.scheduler.Scheduler;
+
+import java.util.concurrent.TimeUnit;
 
 import static net.strocamp.hugo.wbfscoringscreen.Toast.showMessage;
 
@@ -25,6 +39,21 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
     private View mContentView;
     private View mControlsView;
+    private NsdHelper nsdHelper;
+
+    private Scheduler scheduler = new Scheduler();
+    private ServerDetails serverDetails = null;
+    private String statusTaskId = null;
+
+    private String deviceId = null;
+
+    private Handler mNsdEventHandler = new Handler(new Handler.Callback() {
+        @Override
+        public boolean handleMessage(Message message) {
+            serviceDiscoveryCallback(message);
+            return true;
+        }
+    });
 
     private final Runnable mHidePart2Runnable = new Runnable() {
         @SuppressLint("InlinedApi")
@@ -75,6 +104,9 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         setContentView(R.layout.activity_fullscreen);
 
+        NsdManager nsdManager = (NsdManager)getApplicationContext().getSystemService(Context.NSD_SERVICE);
+        nsdHelper = new NsdHelper(nsdManager, mNsdEventHandler);
+
         mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.fullscreen_content);
 
@@ -86,6 +118,10 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
 
+        scheduler.onCreate();
+
+        deviceId = Settings.Secure.getString(getApplicationContext().getContentResolver(),
+                Settings.Secure.ANDROID_ID);
     }
 
     @Override
@@ -101,6 +137,30 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         WebView mWebView = (WebView) mContentView;
         mWebView.loadUrl(BASE_URL);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+        nsdHelper.discoveryStop();
+        WatchDog.getInstance().shutdown();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        WatchDog.getInstance().setListener(this);
+        nsdHelper.discoveryStart();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        nsdHelper.cleanup();
+        scheduler.onDestroy();
     }
 
     private void hide() {
@@ -130,8 +190,56 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
                 myWebView.stopLoading();
 
                 myWebView.loadUrl(BASE_URL);
-
             }
         });
+    }
+
+    private void serviceDiscoveryCallback(Message msg) {
+        String message = msg.getData().getString("messageid");
+        String name = msg.getData().getString("name");
+        String type = msg.getData().getString("type");
+
+        String logMessage = "Got a " + message + " for service " + type + " on " + name;
+        Toast.showMessage(this.getApplicationContext(), logMessage);
+
+        NsdHelper.MessageType messageType = NsdHelper.MessageType.valueOf(message);
+
+        if (NsdHelper.MessageType.MESSAGE_SRVFOUND.equals(messageType)) {
+            if (!msg.getData().containsKey("host")) {
+                Toast.showMessage(getBaseContext(), "Server found, but needs resolving");
+            } else {
+                serverDetails = new ServerDetails(msg.getData().getString("host"), msg.getData().getString("port"));
+
+                // Remove existing task if needed
+                if (statusTaskId != null) {
+                    scheduler.remove(statusTaskId);
+                }
+
+                statusTaskId = scheduler.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        sendStatusUpdate();
+                    }
+                }, 5, TimeUnit.SECONDS);
+            }
+        } else if (NsdHelper.MessageType.MESSAGE_SRVLOST.equals(messageType)) {
+            if (statusTaskId != null) {
+                scheduler.remove(statusTaskId);
+            }
+            serverDetails = null;
+        }
+    }
+
+    private void sendStatusUpdate() {
+        Log.d("FullScreenActivity", "Sending status update to " + serverDetails.getHost());
+
+        WebView mWebView = (WebView) mContentView;
+
+        Status status = new Status();
+        status.setDeviceId(deviceId);
+        status.setCurrentUrl(mWebView.getUrl());
+
+        StatusTaskDetails details = new StatusTaskDetails(status, serverDetails);
+        new StatusUpdateTask().execute(details);
     }
 }
