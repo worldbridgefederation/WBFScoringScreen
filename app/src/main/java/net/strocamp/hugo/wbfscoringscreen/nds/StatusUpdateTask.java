@@ -24,6 +24,11 @@ public class StatusUpdateTask extends AsyncTask<StatusTaskDetails, String, Strin
                     .create();
             StatusTaskDetails taskDetails = data[0];
 
+            if (taskDetails == null || taskDetails.getDestination() == null) {
+                Log.e("StatusUpdateTask", "No destination data, unable to send update");
+                return null;
+            }
+
             URL url = new URL("http://" + taskDetails.getDestination().getHost()
                     + ":" + taskDetails.getDestination().getPort() + "/rest-api/screens/");
 
