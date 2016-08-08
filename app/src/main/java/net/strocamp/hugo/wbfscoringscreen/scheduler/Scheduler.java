@@ -29,7 +29,7 @@ public class Scheduler {
     }
 
     public void remove(String taskId) {
-        if (tasks.contains(taskId)) {
+        if (tasks.containsKey(taskId)) {
             ScheduledFuture<?> task = tasks.get(taskId);
             task.cancel(false);
         }

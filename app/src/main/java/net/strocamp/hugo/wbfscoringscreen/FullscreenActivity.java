@@ -1,8 +1,6 @@
 package net.strocamp.hugo.wbfscoringscreen;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.app.Application;
 import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.os.Message;
@@ -223,7 +221,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
                     public void run() {
                         sendStatusUpdate();
                     }
-                }, 5, TimeUnit.SECONDS);
+                }, 15, TimeUnit.SECONDS);
             }
         } else if (NsdHelper.MessageType.MESSAGE_SRVLOST.equals(messageType)) {
             if (statusTaskId != null) {
@@ -238,13 +236,13 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         Status status = new Status();
         status.setDeviceId(deviceId);
-        status.setCurrentUrl(getCurrentUrlFromotherThread());
+        status.setCurrentUrl(getCurrentUrlFromOtherThread());
 
         StatusTaskDetails details = new StatusTaskDetails(status, serverDetails);
         new StatusUpdateTask().execute(details);
     }
 
-    private String getCurrentUrlFromotherThread() {
+    private String getCurrentUrlFromOtherThread() {
         final CountDownLatch latch = new CountDownLatch(1);
         mNsdEventHandler.postAtFrontOfQueue(new Runnable() {
             @Override
