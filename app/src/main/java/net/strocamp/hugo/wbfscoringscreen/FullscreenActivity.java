@@ -11,11 +11,13 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import net.strocamp.hugo.wbfscoringscreen.domain.ScreenDetails;
 import net.strocamp.hugo.wbfscoringscreen.domain.ServerDetails;
 import net.strocamp.hugo.wbfscoringscreen.domain.Status;
 import net.strocamp.hugo.wbfscoringscreen.domain.StatusTaskDetails;
@@ -46,7 +48,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
     private String deviceId = null;
 
-    private volatile String currentUrl;
+    private volatile Status status;
     private Configuration configuration = null;
 
     private Handler mNsdEventHandler = new Handler(new Handler.Callback() {
@@ -255,28 +257,37 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private void sendStatusUpdate() {
         Log.d("FullScreenActivity", "Sending status update to " + serverDetails.getHost());
 
-        Status status = new Status();
-        status.setDeviceId(deviceId);
-        status.setCurrentUrl(getCurrentUrlFromOtherThread());
+        Status status = getStatusFromMainThread();
 
         StatusTaskDetails details = new StatusTaskDetails(status, serverDetails);
         new StatusUpdateTask().execute(details);
     }
 
-    private String getCurrentUrlFromOtherThread() {
+    private Status getStatusFromMainThread() {
         final CountDownLatch latch = new CountDownLatch(1);
         mNsdEventHandler.postAtFrontOfQueue(new Runnable() {
             @Override
             public void run() {
                 WebView myWebView = (WebView) mContentView;
-                currentUrl = myWebView.getUrl();
+
+                status.setDeviceId(deviceId);
+                status.setCurrentUrl(myWebView.getUrl());
+
+                ScreenDetails screenDetails = new ScreenDetails();
+                DisplayMetrics metrics = getResources().getDisplayMetrics();
+                screenDetails.setHeigth(metrics.heightPixels);
+                screenDetails.setWidth(metrics.widthPixels);
+                screenDetails.setXdpi(metrics.xdpi);
+                screenDetails.setYdpi(metrics.ydpi);
+                status.setScreenDetails(screenDetails);
+
                 latch.countDown();
             }
         });
         try {
             boolean done = latch.await(250, TimeUnit.MILLISECONDS);
             if (done) {
-                return currentUrl;
+                return status;
             }
         } catch (InterruptedException e) {
             Log.e("FullscreenActivity", "Latch wait got interrupted");

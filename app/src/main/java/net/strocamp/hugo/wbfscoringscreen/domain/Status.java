@@ -3,6 +3,7 @@ package net.strocamp.hugo.wbfscoringscreen.domain;
 public class Status {
     private String deviceId;
     private String currentUrl;
+    private ScreenDetails screenDetails;
 
     public void setDeviceId(String deviceId) {
         this.deviceId = deviceId;
@@ -18,5 +19,13 @@ public class Status {
 
     public void setCurrentUrl(String currentUrl) {
         this.currentUrl = currentUrl;
+    }
+
+    public ScreenDetails getScreenDetails() {
+        return screenDetails;
+    }
+
+    public void setScreenDetails(ScreenDetails screenDetails) {
+        this.screenDetails = screenDetails;
     }
 }
