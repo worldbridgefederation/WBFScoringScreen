@@ -2,7 +2,9 @@ package net.strocamp.hugo.wbfscoringscreen;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
 import android.os.Message;
 import android.provider.Settings;
 import android.support.v7.app.ActionBar;
@@ -31,8 +33,6 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private static final int AUTO_HIDE_DELAY_MILLIS = 300;
     private static final int UI_ANIMATION_DELAY = 300;
 
-    private static final String BASE_URL = "http://10.100.200.99";
-
     private final Handler mHideHandler = new Handler();
     private final Handler mLoadurlHandler = new Handler();
 
@@ -47,6 +47,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private String deviceId = null;
 
     private volatile String currentUrl;
+    private Configuration configuration = null;
 
     private Handler mNsdEventHandler = new Handler(new Handler.Callback() {
         @Override
@@ -103,10 +104,13 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        configuration = new Configuration(preferences);
+
         setContentView(R.layout.activity_fullscreen);
 
         NsdManager nsdManager = (NsdManager)getApplicationContext().getSystemService(Context.NSD_SERVICE);
-        nsdHelper = new NsdHelper(nsdManager, mNsdEventHandler);
+        nsdHelper = new NsdHelper(nsdManager, mNsdEventHandler, configuration.getServiceType());
 
         mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.fullscreen_content);
@@ -137,7 +141,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         WatchDog.getInstance().setListener(this);
 
         WebView mWebView = (WebView) mContentView;
-        mWebView.loadUrl(BASE_URL);
+        mWebView.loadUrl(configuration.getDefaultUrl());
     }
 
     @Override
@@ -153,7 +157,20 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         super.onStart();
 
         WatchDog.getInstance().setListener(this);
-        nsdHelper.discoveryStart();
+
+        // Try to resolve the configured name
+        NsdServiceInfo nsdServiceInfo = new NsdServiceInfo();
+        nsdServiceInfo.setServiceType(configuration.getServiceType());
+        nsdServiceInfo.setServiceName(configuration.getServiceName());
+
+        // Start looking for a published service after some time
+        // Gives the NsdManager some time to listen to the network
+        mNsdEventHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                nsdHelper.discoveryStart();
+            }
+        }, 10000);
     }
 
     @Override
@@ -190,7 +207,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
                 WebView myWebView = (WebView) mContentView;
                 myWebView.stopLoading();
 
-                myWebView.loadUrl(BASE_URL);
+                myWebView.loadUrl(configuration.getDefaultUrl());
             }
         });
     }
@@ -200,10 +217,14 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         String name = msg.getData().getString("name");
         String type = msg.getData().getString("type");
 
-        String logMessage = "Got a " + message + " for service " + type + " on " + name;
-        Toast.showMessage(this.getApplicationContext(), logMessage);
-
         NsdHelper.MessageType messageType = NsdHelper.MessageType.valueOf(message);
+
+        if (NsdHelper.MessageType.MESSAGE_INFO == messageType) {
+            Toast.showMessage(this.getApplicationContext(), msg.getData().getString("message"));
+        } else {
+            String logMessage = "Got a " + message + " for service " + type + " on " + name;
+            Toast.showMessage(this.getApplicationContext(), logMessage);
+        }
 
         if (NsdHelper.MessageType.MESSAGE_SRVFOUND.equals(messageType)) {
             if (!msg.getData().containsKey("host")) {

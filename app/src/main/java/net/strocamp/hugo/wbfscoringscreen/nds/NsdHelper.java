@@ -10,17 +10,18 @@ import android.util.Log;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NsdHelper {
-    private static final String SERVICE_TYPE = "_wbfscreens._tcp";
 
     private Handler mNdsEventHandler;
     private NsdManager mNsdManager;
     private NsdManager.DiscoveryListener mDiscoveryListener;
 
     private AtomicBoolean running;
+    private String serviceType;
 
-    public NsdHelper(NsdManager mNsdManager, Handler mNdsEventHandler) {
+    public NsdHelper(NsdManager mNsdManager, Handler mNdsEventHandler, String serviceType) {
         this.mNdsEventHandler = mNdsEventHandler;
         this.mNsdManager = mNsdManager;
+        this.serviceType = serviceType;
 
         running = new AtomicBoolean(false);
     }
@@ -124,7 +125,7 @@ public class NsdHelper {
 
             }
         };
-        mNsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, mDiscoveryListener);
+        mNsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, mDiscoveryListener);
     }
 
     public void discoveryStop() {
