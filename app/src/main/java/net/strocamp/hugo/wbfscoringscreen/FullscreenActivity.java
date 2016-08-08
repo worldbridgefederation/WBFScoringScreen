@@ -35,6 +35,8 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private static final int AUTO_HIDE_DELAY_MILLIS = 300;
     private static final int UI_ANIMATION_DELAY = 300;
 
+    private static final boolean USE_DISCOVERY = false;
+
     private final Handler mHideHandler = new Handler();
     private final Handler mLoadurlHandler = new Handler();
 
@@ -150,7 +152,11 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     protected void onStop() {
         super.onStop();
 
-        nsdHelper.discoveryStop();
+        if (USE_DISCOVERY) {
+            nsdHelper.discoveryStop();
+        } else {
+            scheduler.remove(statusTaskId);
+        }
         WatchDog.getInstance().shutdown();
     }
 
@@ -160,19 +166,25 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         WatchDog.getInstance().setListener(this);
 
-        // Try to resolve the configured name
-        NsdServiceInfo nsdServiceInfo = new NsdServiceInfo();
-        nsdServiceInfo.setServiceType(configuration.getServiceType());
-        nsdServiceInfo.setServiceName(configuration.getServiceName());
+        if (USE_DISCOVERY) {
+            // Start looking for a published service after some time
+            // Gives the NsdManager some time to listen to the network
+            mNsdEventHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    nsdHelper.discoveryStart();
+                }
+            }, 10000);
+        } else {
+            serverDetails = new ServerDetails("10.100.200.10", "8080");
+            statusTaskId = scheduler.submit(new Runnable() {
+                @Override
+                public void run() {
+                    sendStatusUpdate();
+                }
+            }, 15, TimeUnit.SECONDS);
 
-        // Start looking for a published service after some time
-        // Gives the NsdManager some time to listen to the network
-        mNsdEventHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                nsdHelper.discoveryStart();
-            }
-        }, 10000);
+        }
     }
 
     @Override
@@ -270,6 +282,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
             public void run() {
                 WebView myWebView = (WebView) mContentView;
 
+                status = new Status();
                 status.setDeviceId(deviceId);
                 status.setCurrentUrl(myWebView.getUrl());
 
