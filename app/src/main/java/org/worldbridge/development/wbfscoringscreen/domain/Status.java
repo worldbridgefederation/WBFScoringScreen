@@ -6,6 +6,7 @@ public class Status {
     private ScreenDetails screenDetails;
     private HardwareDetails hardwareDetails;
     private VersionDetails versionDetails;
+    private boolean supportNotifications = true;
 
     public void setDeviceId(String deviceId) {
         this.deviceId = deviceId;
@@ -45,5 +46,9 @@ public class Status {
 
     public void setVersionDetails(VersionDetails versionDetails) {
         this.versionDetails = versionDetails;
+    }
+
+    public boolean getSupportNotifications() {
+        return supportNotifications;
     }
 }

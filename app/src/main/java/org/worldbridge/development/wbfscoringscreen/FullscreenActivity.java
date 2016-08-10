@@ -4,28 +4,20 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.nsd.NsdManager;
-import android.net.nsd.NsdServiceInfo;
-import android.os.Build;
-import android.os.Message;
+import android.os.*;
 import android.provider.Settings;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
-import android.os.Handler;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import org.worldbridge.development.wbfscoringscreen.domain.ScreenDetails;
-import org.worldbridge.development.wbfscoringscreen.domain.ServerDetails;
-import org.worldbridge.development.wbfscoringscreen.domain.Status;
-import org.worldbridge.development.wbfscoringscreen.domain.StatusTaskDetails;
+import org.worldbridge.development.wbfscoringscreen.domain.*;
 import org.worldbridge.development.wbfscoringscreen.nds.NsdHelper;
-import org.worldbridge.development.wbfscoringscreen.nds.StatusUpdateTask;
 import org.worldbridge.development.wbfscoringscreen.scheduler.Scheduler;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +29,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private static final int UI_ANIMATION_DELAY = 300;
 
     private static final boolean USE_DISCOVERY = false;
+    public static final int MAX_URL_SIZE = 1024;
 
     private final Handler mHideHandler = new Handler();
     private final Handler mLoadurlHandler = new Handler();
@@ -53,6 +46,8 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
     private volatile Status status;
     private Configuration configuration = null;
+
+    private Notification activeNotification = null;
 
     private Handler mNsdEventHandler = new Handler(new Handler.Callback() {
         @Override
@@ -145,7 +140,7 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         WatchDog.getInstance().setListener(this);
 
-        WebView mWebView = (WebView) mContentView;
+        final WebView mWebView = (WebView) mContentView;
         mWebView.loadUrl(configuration.getDefaultUrl());
     }
 
@@ -273,7 +268,50 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         Status status = getStatusFromMainThread();
 
         StatusTaskDetails details = new StatusTaskDetails(status, serverDetails);
-        new StatusUpdateTask().execute(details);
+        new AsyncTask<StatusTaskDetails, String, StatusResponse>() {
+            @Override
+            protected StatusResponse doInBackground(StatusTaskDetails... data) {
+                StatusTaskDetails taskDetails = data[0];
+                StatusTaskHelper statusTaskHelper = new StatusTaskHelper();
+                return statusTaskHelper.doStatusUpdate(taskDetails);
+            }
+
+            @Override
+            protected void onPostExecute(StatusResponse s) {
+                if (s == null) {
+                    Log.w("FullscreenActivity", "Server didn't send a status response");
+                    return;
+                }
+                Log.i("FullscreenActivity", "Received Statusresponse with show:" + s.getShowNotitification());
+                if (Boolean.TRUE.equals(s.getShowNotitification())) {
+                    if (s.getNotification() == null) {
+                        Log.e("FullscreenActivity", "Asked to show notification but no content");
+                        return;
+                    }
+                    if (!s.getNotification().equals(activeNotification)) {
+                        activeNotification = s.getNotification();
+                        final WebView mWebView = (WebView) mContentView;
+                        try {
+                            mWebView.loadData(
+                                NotificationHelper.getNotificationContent(getAssets(),
+                                        s.getNotification().getTitle(), s.getNotification().getMessage()),
+                                "text/html", "UTF-8");
+                        } catch (IOException e) {
+                            Log.e("FullscreenActivity", "Failed to load notification");
+                        }
+                    }
+
+                    // Reset the watchDog now we are showing a notification
+                    WatchDog.getInstance().resetWatchDog();
+                } else if (activeNotification != null) {
+                    // We need to get back to the regular program
+                    activeNotification = null;
+                    final WebView mWebView = (WebView) mContentView;
+                    mWebView.loadUrl(configuration.getDefaultUrl());
+                }
+
+            }
+        }.execute(details);
     }
 
     private Status getStatusFromMainThread() {
@@ -285,8 +323,12 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
                 status = new Status();
                 status.setDeviceId(deviceId);
-                status.setCurrentUrl(myWebView.getUrl());
+                String urlString = myWebView.getUrl();
+                if (urlString != null && urlString.length() > MAX_URL_SIZE) {
+                    urlString = urlString.substring(0, MAX_URL_SIZE);
 
+                }
+                status.setCurrentUrl(urlString);
                 status.setScreenDetails(StatusHelper.getScreenDetails(getResources().getDisplayMetrics()));
                 status.setHardwareDetails(StatusHelper.getHardwareDetails());
                 status.setVersionDetails(StatusHelper.getVersionDetails());
