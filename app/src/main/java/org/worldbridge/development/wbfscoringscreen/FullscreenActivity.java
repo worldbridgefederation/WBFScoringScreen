@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.os.Build;
 import android.os.Message;
 import android.provider.Settings;
 import android.support.v7.app.ActionBar;
@@ -286,13 +287,9 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
                 status.setDeviceId(deviceId);
                 status.setCurrentUrl(myWebView.getUrl());
 
-                ScreenDetails screenDetails = new ScreenDetails();
-                DisplayMetrics metrics = getResources().getDisplayMetrics();
-                screenDetails.setHeigth(metrics.heightPixels);
-                screenDetails.setWidth(metrics.widthPixels);
-                screenDetails.setXdpi(metrics.xdpi);
-                screenDetails.setYdpi(metrics.ydpi);
-                status.setScreenDetails(screenDetails);
+                status.setScreenDetails(StatusHelper.getScreenDetails(getResources().getDisplayMetrics()));
+                status.setHardwareDetails(StatusHelper.getHardwareDetails());
+                status.setVersionDetails(StatusHelper.getVersionDetails());
 
                 latch.countDown();
             }
@@ -307,4 +304,5 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
         }
         return null;
     }
+
 }
