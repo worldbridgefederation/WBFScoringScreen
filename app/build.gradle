@@ -23,6 +23,7 @@ android {
     }
     lintOptions {
         disable 'SetJavaScriptEnabled','TrustAllX509TrustManager', 'GoogleAppIndexingWarning'
+        abortOnError false
     }
 }
 
