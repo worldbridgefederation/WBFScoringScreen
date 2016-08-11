@@ -47,3 +47,4 @@ atlassian-ide-plugin.xml
 
 .gradle
 build
+local.properties
