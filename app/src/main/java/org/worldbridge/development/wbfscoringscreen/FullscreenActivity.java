@@ -92,11 +92,14 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
     private final View.OnTouchListener mDelayHideTouchListener = new View.OnTouchListener() {
         @Override
         public boolean onTouch(View view, MotionEvent motionEvent) {
-            if (AUTO_HIDE) {
-                showMessage(getApplicationContext(), R.string.toast_fullscreen_enable);
-                delayedHide(AUTO_HIDE_DELAY_MILLIS);
+            switch (motionEvent.getAction()) {
+                case MotionEvent.ACTION_UP:
+                    view.performClick();
+                    break;
+                default:
+                    break;
             }
-            return false;
+            return true;
         }
     };
 
@@ -119,6 +122,15 @@ public class FullscreenActivity extends AppCompatActivity implements WatchDogLis
 
         WebView mWebView = (WebView) mContentView;
         mWebView.setWebViewClient(new MonitoringWebViewClient());
+        mWebView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (AUTO_HIDE) {
+                    showMessage(getApplicationContext(), R.string.toast_fullscreen_enable);
+                    delayedHide(AUTO_HIDE_DELAY_MILLIS);
+                }
+            }
+        });
 
         WebSettings webSettings = mWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);

@@ -4,5 +4,4 @@
     <string name="title_activity_fullscreen">FullscreenActivity</string>
 
     <string name="toast_fullscreen_enable">Switched to fullscreen</string>
-    <string name="toast_fullscreen_disable">Fullscreen disabled</string>
 </resources>
